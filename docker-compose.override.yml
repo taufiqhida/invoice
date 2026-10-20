@@ -1,0 +1,6 @@
+# Dibaca otomatis oleh `docker compose up` (cocok untuk laptop / mesin tanpa proxy).
+# Buka aplikasi di http://localhost:${WEB_PORT}
+services:
+  web:
+    ports:
+      - "${WEB_PORT:-8080}:80"

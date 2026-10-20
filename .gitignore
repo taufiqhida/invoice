@@ -1,0 +1,6 @@
+.env
+node_modules/
+dist/
+vendor/
+backend/storage/*.key
+.DS_Store
