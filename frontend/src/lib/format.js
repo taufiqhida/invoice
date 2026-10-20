@@ -20,4 +20,8 @@ export const formatDayDate = (iso) =>
     year: 'numeric',
   })
 
+// ID unik untuk baris di UI. crypto.randomUUID() hanya ada di HTTPS/localhost, jadi pakai penghitung sederhana.
+let uidCounter = 0
+export const uid = () => `row-${Date.now().toString(36)}-${(uidCounter++).toString(36)}`
+
 export const todayISO = () => new Date().toISOString().slice(0, 10)

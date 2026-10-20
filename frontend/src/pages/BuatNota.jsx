@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import CustomerPicker from '../components/CustomerPicker.jsx'
 import SavedInvoiceModal from '../components/SavedInvoiceModal.jsx'
-import { formatRupiah, toNumber, todayISO } from '../lib/format.js'
+import { formatRupiah, toNumber, todayISO, uid } from '../lib/format.js'
 import { mockCustomers, formatInvoiceNumber } from '../mocks/data.js'
 import { addInvoice, useInvoices } from '../mocks/invoiceStore.js'
 
-const newItem = (date = todayISO()) => ({ id: crypto.randomUUID(), name: '', qty: '1', price: '', date })
+const newItem = (date = todayISO()) => ({ id: uid(), name: '', qty: '1', price: '', date })
 
 const ITEM_GRID = 'sm:grid-cols-[140px_1fr_64px_110px_100px_28px]'
 
