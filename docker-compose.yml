@@ -62,7 +62,7 @@ services:
     depends_on:
       - backend
     # Port tidak dibuka di sini. Lokal: lihat docker-compose.override.yml.
-    # VPS di belakang nginx-proxy: lihat docker-compose.proxy.yml.
+    # VPS (Nginx/aaPanel di host sebagai gerbang): lihat docker-compose.vps.yml.
 
 volumes:
   db_data:

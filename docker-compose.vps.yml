@@ -1,0 +1,12 @@
+# Untuk VPS dengan Nginx dari aaPanel (atau Nginx host lain) sebagai gerbang HTTPS.
+# Container "web" hanya dibuka di 127.0.0.1 (tidak bisa diakses langsung dari internet);
+# domain + sertifikat diatur di Nginx host yang meneruskan (reverse proxy) ke port ini.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.vps.yml -f docker-compose.shared-db.yml up -d --build
+#
+# (-f eksplisit, jadi docker-compose.override.yml untuk lokal TIDAK ikut dibaca)
+services:
+  web:
+    container_name: invoice-web
+    ports:
+      - "127.0.0.1:${INVOICE_PORT:-8085}:80"
