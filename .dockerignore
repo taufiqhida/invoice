@@ -8,3 +8,6 @@ backend/storage/framework/*/*
 .claude
 .ngodingpakeai
 AGENTS.md
+
+backend/.env
+backend/.phpunit.result.cache
