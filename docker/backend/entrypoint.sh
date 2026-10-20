@@ -18,6 +18,15 @@ fi
 
 # Hanya jalankan tugas setup saat menjalankan php-fpm (bukan perintah artisan sekali jalan).
 if [ "$1" = "php-fpm" ]; then
+  # Tunggu database siap (maks. ±60 detik) — perlu bila memakai MySQL bersama tanpa healthcheck.
+  i=0
+  until php -r 'try { new PDO("mysql:host=".getenv("DB_HOST").";port=".getenv("DB_PORT").";dbname=".getenv("DB_DATABASE"), getenv("DB_USERNAME"), getenv("DB_PASSWORD")); } catch (Throwable $e) { fwrite(STDERR, $e->getMessage().PHP_EOL); exit(1); }'; do
+    i=$((i+1))
+    if [ "$i" -ge 30 ]; then echo "[entrypoint] Database tidak bisa dihubungi, berhenti."; exit 1; fi
+    echo "[entrypoint] Menunggu database ($i/30)..."
+    sleep 2
+  done
+
   php artisan storage:link --force >/dev/null 2>&1 || true
   php artisan migrate --force
 

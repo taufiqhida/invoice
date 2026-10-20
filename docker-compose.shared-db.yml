@@ -1,0 +1,14 @@
+# Memakai MySQL yang SUDAH ADA di VPS (satu host untuk banyak project), bukan MySQL bawaan.
+# Syarat di .env:  COMPOSE_PROFILES=   (kosong)   DB_HOST=<nama container MySQL>   SHARED_DB_NETWORK=<nama jaringannya>
+# Jalankan:
+#   docker compose -f docker-compose.yml -f docker-compose.proxy.yml -f docker-compose.shared-db.yml up -d --build
+services:
+  backend:
+    networks:
+      - default
+      - shared-db
+
+networks:
+  shared-db:
+    external: true
+    name: ${SHARED_DB_NETWORK:?Isi SHARED_DB_NETWORK di file .env}
