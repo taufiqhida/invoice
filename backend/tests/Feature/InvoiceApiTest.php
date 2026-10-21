@@ -229,6 +229,131 @@ class InvoiceApiTest extends TestCase
             ->assertUnprocessable()->assertJsonValidationErrors('status');
     }
 
+    /** Buat nota dengan dua barang dan kembalikan hasilnya. */
+    private function makeInvoice(Customer $c, array $extra = []): array
+    {
+        return $this->postJson('/api/invoices', $this->payload($c, [
+            $this->item('2026-10-19', 'Gula', 2, 15000),
+            $this->item('2026-10-20', 'Garam', 3, 5000),
+        ], $extra))->json('invoice');
+    }
+
+    public function test_items_can_be_edited_added_and_removed_in_one_save(): void
+    {
+        $this->login();
+        $budi = Customer::create(['name' => 'Budi']);
+        $inv = $this->makeInvoice($budi);
+        [$gula, $garam] = $inv['items'];
+
+        $res = $this->putJson("/api/invoices/{$inv['id']}", [
+            'items' => [
+                // Gula dibetulkan (jumlah 2 -> 5, harga 15000 -> 16000), Garam dihapus, Kopi ditambahkan.
+                ['id' => $gula['id'], 'date' => '2026-10-19', 'name' => 'Gula pasir', 'qty' => 5, 'price' => 16000],
+                ['date' => '2026-10-21', 'name' => 'Kopi', 'qty' => 1, 'price' => 20000],
+            ],
+        ])->assertOk();
+
+        $res->assertJsonPath('invoiceNumber', $inv['invoiceNumber'])
+            ->assertJsonCount(2, 'items')
+            ->assertJsonPath('items.0.id', $gula['id'])
+            ->assertJsonPath('items.0.name', 'Gula pasir')
+            ->assertJsonPath('subtotal', 80000 + 20000);
+
+        $this->assertDatabaseMissing('invoice_items', ['id' => $garam['id']]);
+        $this->assertDatabaseCount('invoices', 1);
+    }
+
+    public function test_edit_keeps_discount_but_caps_it_at_new_subtotal(): void
+    {
+        $this->login();
+        $budi = Customer::create(['name' => 'Budi']);
+        $inv = $this->makeInvoice($budi, ['discount' => 20000]); // subtotal 45000
+        $this->assertSame(20000, $inv['discount']);
+
+        // Barang dikurangi jadi Rp 10.000: diskon lama (20.000) otomatis dibatasi.
+        $this->putJson("/api/invoices/{$inv['id']}", [
+            'items' => [['id' => $inv['items'][1]['id'], 'date' => '2026-10-20', 'name' => 'Garam', 'qty' => 2, 'price' => 5000]],
+        ])->assertOk()->assertJsonPath('subtotal', 10000)->assertJsonPath('discount', 10000)->assertJsonPath('total', 0);
+    }
+
+    public function test_edit_can_change_discount_note_and_date(): void
+    {
+        $this->login();
+        $budi = Customer::create(['name' => 'Budi']);
+        $inv = $this->makeInvoice($budi, ['note' => 'lama']);
+
+        $this->putJson("/api/invoices/{$inv['id']}", [
+            'date' => '2026-10-18',
+            'discount' => 5000,
+            'note' => 'baru',
+            'items' => array_map(fn ($i) => ['id' => $i['id'], 'date' => $i['date'], 'name' => $i['name'], 'qty' => $i['qty'], 'price' => $i['price']], $inv['items']),
+        ])->assertOk()->assertJsonPath('date', '2026-10-18')->assertJsonPath('discount', 5000)
+            ->assertJsonPath('note', 'baru')->assertJsonPath('total', 40000);
+
+        // Catatan dikosongkan.
+        $this->putJson("/api/invoices/{$inv['id']}", ['note' => '', 'items' => [$this->item('2026-10-19')]])
+            ->assertOk()->assertJsonPath('note', '');
+    }
+
+    public function test_closed_invoice_can_still_be_corrected(): void
+    {
+        $this->login();
+        $budi = Customer::create(['name' => 'Budi']);
+        $inv = $this->makeInvoice($budi);
+        $this->patchJson("/api/invoices/{$inv['id']}", ['status' => 'lunas'])->assertOk();
+
+        $this->putJson("/api/invoices/{$inv['id']}", ['items' => [$this->item('2026-10-19', 'Gula', 1, 1000)]])
+            ->assertOk()->assertJsonPath('status', 'lunas')->assertJsonPath('subtotal', 1000);
+    }
+
+    public function test_edit_requires_at_least_one_valid_item(): void
+    {
+        $this->login();
+        $budi = Customer::create(['name' => 'Budi']);
+        $inv = $this->makeInvoice($budi);
+
+        $this->putJson("/api/invoices/{$inv['id']}", ['items' => []])->assertUnprocessable()->assertJsonValidationErrors('items');
+        $this->putJson("/api/invoices/{$inv['id']}", ['items' => [$this->item('2026-10-19', 'Gula', 0)]])->assertUnprocessable();
+        $this->assertSame(2, Invoice::find($inv['id'])->items()->count()); // tidak ada yang berubah
+    }
+
+    public function test_edit_rejects_items_from_another_invoice_and_duplicates(): void
+    {
+        $this->login();
+        $a = Customer::create(['name' => 'A']);
+        $b = Customer::create(['name' => 'B']);
+        $invA = $this->makeInvoice($a);
+        $invB = $this->makeInvoice($b);
+        $foreign = $invB['items'][0];
+
+        $this->putJson("/api/invoices/{$invA['id']}", [
+            'items' => [['id' => $foreign['id'], 'date' => '2026-10-19', 'name' => 'Curian', 'qty' => 1, 'price' => 1]],
+        ])->assertUnprocessable()->assertJsonValidationErrors('items');
+
+        $own = $invA['items'][0];
+        $row = ['id' => $own['id'], 'date' => '2026-10-19', 'name' => 'X', 'qty' => 1, 'price' => 1];
+        $this->putJson("/api/invoices/{$invA['id']}", ['items' => [$row, $row]])->assertUnprocessable();
+
+        // Nota B tidak tersentuh.
+        $this->assertSame('Gula', Invoice::find($invB['id'])->items()->first()->name);
+    }
+
+    public function test_invoice_can_be_deleted_with_its_items(): void
+    {
+        $this->login();
+        $budi = Customer::create(['name' => 'Budi']);
+        $inv = $this->makeInvoice($budi);
+
+        $this->deleteJson("/api/invoices/{$inv['id']}")->assertOk();
+
+        $this->assertDatabaseCount('invoices', 0);
+        $this->assertDatabaseCount('invoice_items', 0);
+        $this->deleteJson("/api/invoices/{$inv['id']}")->assertNotFound();
+
+        // Pelanggan bisa membuat nota baru lagi.
+        $this->postJson('/api/invoices', $this->payload($budi, [$this->item('2026-10-22')]))->assertCreated();
+    }
+
     public function test_list_and_show_return_camel_case_shape(): void
     {
         $this->login();

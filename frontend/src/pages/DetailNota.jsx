@@ -1,12 +1,23 @@
 import { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import EditNota from '../components/EditNota.jsx'
 import InvoicePrint from '../components/InvoicePrint.jsx'
-import { STATUS_LABEL, isOpen, setInvoiceStatus, useInvoice } from '../lib/invoiceStore.js'
+import {
+  STATUS_LABEL,
+  deleteInvoice,
+  isOpen,
+  setInvoiceStatus,
+  updateInvoice,
+  useInvoice,
+} from '../lib/invoiceStore.js'
 
 export default function DetailNota() {
   const { id } = useParams()
+  const navigate = useNavigate()
   const { invoice, loading, error } = useInvoice(id)
   const [statusError, setStatusError] = useState('')
+  const [editing, setEditing] = useState(false)
+  const [notice, setNotice] = useState('')
 
   const changeStatus = async (status) => {
     setStatusError('')
@@ -15,6 +26,17 @@ export default function DetailNota() {
     } catch (err) {
       setStatusError(err.message)
     }
+  }
+
+  const saveChanges = async (payload) => {
+    await updateInvoice(invoice.id, payload)
+    setEditing(false)
+    setNotice('Perubahan nota sudah disimpan.')
+  }
+
+  const removeInvoice = async () => {
+    await deleteInvoice(invoice.id)
+    navigate('/riwayat', { replace: true })
   }
 
   if (loading) {
@@ -53,7 +75,19 @@ export default function DetailNota() {
               ))}
             </select>
           </label>
-          {isOpen(invoice) && (
+          {!editing && (
+            <button
+              type="button"
+              onClick={() => {
+                setNotice('')
+                setEditing(true)
+              }}
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Ubah nota
+            </button>
+          )}
+          {isOpen(invoice) && !editing && (
             <Link
               to={`/nota/baru?pelanggan=${invoice.customerId ?? ''}`}
               className="rounded-lg border border-indigo-300 px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50"
@@ -75,7 +109,16 @@ export default function DetailNota() {
           {statusError}
         </p>
       )}
-      <InvoicePrint invoice={invoice} />
+      {notice && !editing && (
+        <p role="status" className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800 print:hidden">
+          {notice}
+        </p>
+      )}
+      {editing ? (
+        <EditNota invoice={invoice} onSave={saveChanges} onCancel={() => setEditing(false)} onDelete={removeInvoice} />
+      ) : (
+        <InvoicePrint invoice={invoice} />
+      )}
     </div>
   )
 }

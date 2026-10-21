@@ -79,6 +79,18 @@ export async function setInvoiceStatus(id, status) {
   return invoice
 }
 
+// Ubah isi nota sekaligus (barang diedit / ditambah / dihapus, diskon, catatan, tanggal).
+export async function updateInvoice(id, payload) {
+  const invoice = await api(`/invoices/${id}`, { method: 'PUT', body: payload })
+  upsertInvoice(invoice)
+  return invoice
+}
+
+export async function deleteInvoice(id) {
+  await api(`/invoices/${id}`, { method: 'DELETE' })
+  set({ invoices: (state.invoices ?? []).filter((i) => i.id !== id) })
+}
+
 export async function addCustomer(data) {
   const created = await api('/customers', { method: 'POST', body: data })
   set({ customers: [...(state.customers ?? []), created].sort((a, b) => a.name.localeCompare(b.name)) })

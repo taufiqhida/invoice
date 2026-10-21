@@ -37,4 +37,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/invoices', [InvoiceController::class, 'store']);
     Route::get('/invoices/{invoice}', [InvoiceController::class, 'show']);
     Route::patch('/invoices/{invoice}', [InvoiceController::class, 'update']);
+    Route::put('/invoices/{invoice}', [InvoiceController::class, 'replace']);
+    Route::delete('/invoices/{invoice}', [InvoiceController::class, 'destroy']);
 });
