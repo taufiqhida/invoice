@@ -91,8 +91,22 @@ export async function deleteInvoice(id) {
   set({ invoices: (state.invoices ?? []).filter((i) => i.id !== id) })
 }
 
+const byName = (a, b) => a.name.localeCompare(b.name)
+
 export async function addCustomer(data) {
   const created = await api('/customers', { method: 'POST', body: data })
-  set({ customers: [...(state.customers ?? []), created].sort((a, b) => a.name.localeCompare(b.name)) })
+  set({ customers: [...(state.customers ?? []), created].sort(byName) })
   return created
+}
+
+// Ubah nama / nomor pelanggan. Berlaku di semua nota pelanggan ini, jadi nota di memori ikut diperbarui.
+export async function updateCustomer(id, data) {
+  const updated = await api(`/customers/${id}`, { method: 'PATCH', body: data })
+  set({
+    customers: (state.customers ?? []).map((c) => (c.id === id ? updated : c)).sort(byName),
+    invoices: (state.invoices ?? []).map((i) =>
+      i.customerId === id ? { ...i, customerName: updated.name, customerPhone: updated.phone } : i,
+    ),
+  })
+  return updated
 }

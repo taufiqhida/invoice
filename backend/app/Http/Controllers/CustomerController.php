@@ -17,12 +17,26 @@ class CustomerController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        return response()->json($this->format(Customer::create($this->validated($request))), 201);
+    }
+
+    /** Ubah nama / nomor pelanggan. Berlaku di semua nota pelanggan ini, termasuk yang lama. */
+    public function update(Request $request, Customer $customer): JsonResponse
+    {
+        $customer->update($this->validated($request));
+
+        return response()->json($this->format($customer));
+    }
+
+    private function validated(Request $request): array
+    {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'regex:/^[0-9+\-\s]{6,20}$/'],
         ]);
+        $data['name'] = trim($data['name']);
 
-        return response()->json($this->format(Customer::create($data)), 201);
+        return $data;
     }
 
     private function format(Customer $c): array

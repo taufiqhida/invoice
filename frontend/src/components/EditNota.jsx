@@ -33,6 +33,8 @@ export default function EditNota({ invoice, onSave, onCancel, onDelete }) {
     })),
   )
   const [date, setDate] = useState(invoice.date)
+  const [custName, setCustName] = useState(invoice.customerName)
+  const [custPhone, setCustPhone] = useState(invoice.customerPhone)
   const [discount, setDiscount] = useState(invoice.discount ? String(invoice.discount) : '')
   const [note, setNote] = useState(invoice.note)
   const [submitted, setSubmitted] = useState(false)
@@ -48,6 +50,8 @@ export default function EditNota({ invoice, onSave, onCancel, onDelete }) {
 
   const errors = []
   if (!date) errors.push('Tanggal nota belum diisi.')
+  if (!custName.trim()) errors.push('Nama pelanggan wajib diisi.')
+  if (custPhone.trim() && !/^[0-9+\-\s]{6,20}$/.test(custPhone.trim())) errors.push('Nomor telepon pelanggan tidak valid.')
   if (active.length === 0) errors.push('Nota harus punya minimal satu barang. Untuk membuang seluruh nota, pakai tombol Hapus nota.')
   if (invalidCount > 0) errors.push(`${invalidCount} baris barang belum lengkap. Lengkapi atau hapus baris tersebut.`)
   if (toNumber(discount) < 0) errors.push('Diskon tidak boleh bernilai negatif.')
@@ -69,17 +73,23 @@ export default function EditNota({ invoice, onSave, onCancel, onDelete }) {
     setBusy(true)
     setError('')
     try {
+      const customerChanged =
+        custName.trim() !== invoice.customerName || custPhone.trim() !== invoice.customerPhone
       await onSave({
-        date,
-        items: active.map((r) => ({
-          ...(r.id ? { id: r.id } : {}),
-          date: r.date,
-          name: r.name.trim(),
-          qty: toNumber(r.qty),
-          price: toNumber(r.price),
-        })),
-        discount: discount === '' ? 0 : toNumber(discount),
-        note: note.trim(),
+        // null = data pelanggan tidak berubah
+        customer: customerChanged ? { name: custName.trim(), phone: custPhone.trim() } : null,
+        invoice: {
+          date,
+          items: active.map((r) => ({
+            ...(r.id ? { id: r.id } : {}),
+            date: r.date,
+            name: r.name.trim(),
+            qty: toNumber(r.qty),
+            price: toNumber(r.price),
+          })),
+          discount: discount === '' ? 0 : toNumber(discount),
+          note: note.trim(),
+        },
       })
     } catch (err) {
       setError(err.message)
@@ -111,10 +121,29 @@ export default function EditNota({ invoice, onSave, onCancel, onDelete }) {
         </p>
       </div>
 
-      <label className="block sm:w-56">
-        <span className="mb-1 block text-sm font-medium">Tanggal nota</span>
-        <input type="date" className={inputCls} value={date} onChange={(e) => setDate(e.target.value)} />
-      </label>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium">Nama pelanggan</span>
+          <input className={inputCls} value={custName} onChange={(e) => setCustName(e.target.value)} />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium">No. WhatsApp</span>
+          <input
+            className={inputCls}
+            inputMode="tel"
+            placeholder="(opsional)"
+            value={custPhone}
+            onChange={(e) => setCustPhone(e.target.value)}
+          />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium">Tanggal nota</span>
+          <input type="date" className={inputCls} value={date} onChange={(e) => setDate(e.target.value)} />
+        </label>
+        <p className="text-xs text-slate-500 sm:col-span-3">
+          Perubahan nama atau nomor pelanggan berlaku di semua nota pelanggan ini, termasuk yang lama.
+        </p>
+      </div>
 
       <div>
         <div className={`hidden gap-2 px-1 pb-1 text-xs font-medium uppercase text-slate-500 sm:grid ${ITEM_GRID}`}>

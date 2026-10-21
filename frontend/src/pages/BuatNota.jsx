@@ -3,7 +3,14 @@ import { useSearchParams } from 'react-router-dom'
 import CustomerPicker from '../components/CustomerPicker.jsx'
 import SavedInvoiceModal from '../components/SavedInvoiceModal.jsx'
 import { formatRupiah, toNumber, todayISO, uid } from '../lib/format.js'
-import { addCustomer, findOpenInvoice, saveInvoice, useCustomers, useInvoices } from '../lib/invoiceStore.js'
+import {
+  addCustomer,
+  findOpenInvoice,
+  saveInvoice,
+  updateCustomer,
+  useCustomers,
+  useInvoices,
+} from '../lib/invoiceStore.js'
 
 const newItem = (date = todayISO()) => ({ id: uid(), name: '', qty: '1', price: '', date })
 
@@ -147,6 +154,7 @@ export default function BuatNota() {
               value={customerId}
               onChange={chooseCustomer}
               onAddCustomer={addCustomer}
+              onUpdateCustomer={updateCustomer}
             />
             {!appendMode && (
               <label className="block">

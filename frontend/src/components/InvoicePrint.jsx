@@ -1,6 +1,7 @@
 import { Fragment } from 'react'
 import { formatDayDate, formatRupiah } from '../lib/format.js'
 import { mockStore } from '../mocks/data.js'
+import InvoiceQr from './InvoiceQr.jsx'
 
 const formatDate = (iso) =>
   new Date(iso + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -118,7 +119,20 @@ export default function InvoicePrint({ invoice, store = mockStore }) {
         </dl>
       </div>
 
-      <footer className="mt-10 text-center text-xs text-slate-500">Terima kasih atas kunjungan Anda.</footer>
+      <footer className="mt-10 flex items-end justify-between gap-4 text-xs text-slate-500">
+        {invoice.verifyToken ? (
+          <div className="flex items-center gap-3">
+            <InvoiceQr token={invoice.verifyToken} />
+            <p className="max-w-[9rem] leading-snug">
+              Scan untuk memverifikasi keaslian nota ini.
+              <span className="mt-1 block font-medium text-slate-700">{invoice.invoiceNumber}</span>
+            </p>
+          </div>
+        ) : (
+          <span />
+        )}
+        <p>Terima kasih atas kunjungan Anda.</p>
+      </footer>
     </article>
   )
 }

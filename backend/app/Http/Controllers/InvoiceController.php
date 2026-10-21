@@ -145,6 +145,7 @@ class InvoiceController extends Controller
                 $fields['date'] = $data['date'];
             }
             $invoice->update($fields);
+            $invoice->touch(); // penanda "diperbarui" di halaman verifikasi
         });
 
         return response()->json((new InvoiceResource($invoice->refresh()->load(['customer', 'items'])))->resolve());
@@ -195,6 +196,7 @@ class InvoiceController extends Controller
         if ($fields) {
             $invoice->update($fields);
         }
+        $invoice->touch(); // penanda "diperbarui" di halaman verifikasi
 
         return [$invoice->load('customer'), $appended];
     }

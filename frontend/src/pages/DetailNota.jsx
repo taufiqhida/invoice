@@ -7,6 +7,7 @@ import {
   deleteInvoice,
   isOpen,
   setInvoiceStatus,
+  updateCustomer,
   updateInvoice,
   useInvoice,
 } from '../lib/invoiceStore.js'
@@ -28,7 +29,8 @@ export default function DetailNota() {
     }
   }
 
-  const saveChanges = async (payload) => {
+  const saveChanges = async ({ customer, invoice: payload }) => {
+    if (customer) await updateCustomer(invoice.customerId, customer)
     await updateInvoice(invoice.id, payload)
     setEditing(false)
     setNotice('Perubahan nota sudah disimpan.')

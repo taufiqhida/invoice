@@ -354,6 +354,77 @@ class InvoiceApiTest extends TestCase
         $this->postJson('/api/invoices', $this->payload($budi, [$this->item('2026-10-22')]))->assertCreated();
     }
 
+    public function test_customer_can_be_edited_and_old_invoices_show_new_name(): void
+    {
+        $this->login();
+        $budi = Customer::create(['name' => 'Bdui', 'phone' => '0812']);
+        $inv = $this->makeInvoice($budi);
+
+        $this->patchJson("/api/customers/{$budi->id}", ['name' => '  Budi Santoso ', 'phone' => '081234567890'])
+            ->assertOk()->assertJsonPath('name', 'Budi Santoso')->assertJsonPath('phone', '081234567890');
+
+        $this->getJson("/api/invoices/{$inv['id']}")
+            ->assertJsonPath('customerName', 'Budi Santoso')->assertJsonPath('customerPhone', '081234567890');
+
+        // Nomor boleh dikosongkan; nama wajib; nomor harus valid.
+        $this->patchJson("/api/customers/{$budi->id}", ['name' => 'Budi', 'phone' => ''])->assertOk()->assertJsonPath('phone', '');
+        $this->patchJson("/api/customers/{$budi->id}", ['name' => ''])->assertUnprocessable();
+        $this->patchJson("/api/customers/{$budi->id}", ['name' => 'Budi', 'phone' => 'abc'])->assertUnprocessable();
+        $this->patchJson('/api/customers/9999', ['name' => 'X'])->assertNotFound();
+    }
+
+    public function test_customer_edit_requires_login(): void
+    {
+        $c = Customer::create(['name' => 'Budi']);
+        $this->patchJson("/api/customers/{$c->id}", ['name' => 'X'])->assertUnauthorized();
+    }
+
+    public function test_every_invoice_gets_a_unique_verify_token(): void
+    {
+        $this->login();
+        $a = Customer::create(['name' => 'A']);
+        $b = Customer::create(['name' => 'B']);
+
+        $ta = $this->makeInvoice($a)['verifyToken'];
+        $tb = $this->makeInvoice($b)['verifyToken'];
+
+        $this->assertSame(32, strlen($ta));
+        $this->assertNotSame($ta, $tb);
+    }
+
+    public function test_verify_page_is_public_and_shows_only_a_summary(): void
+    {
+        $this->login();
+        $budi = Customer::create(['name' => 'Budi', 'phone' => '0812-RAHASIA']);
+        $inv = $this->makeInvoice($budi, ['discount' => 5000]);
+
+        // Tanpa login (token tidak dikirim).
+        $this->app['auth']->forgetGuards();
+        $res = $this->getJson("/api/verify/{$inv['verifyToken']}")->assertOk();
+
+        $res->assertJsonPath('invoiceNumber', $inv['invoiceNumber'])
+            ->assertJsonPath('customerName', 'Budi')
+            ->assertJsonPath('total', 40000)
+            ->assertJsonPath('itemCount', 2)
+            ->assertJsonPath('status', 'draft');
+        $this->assertStringNotContainsString('RAHASIA', $res->getContent());
+        $this->assertStringNotContainsString('Gula', $res->getContent());
+        $res->assertJsonMissingPath('items');
+    }
+
+    public function test_verify_reflects_later_edits_and_rejects_unknown_tokens(): void
+    {
+        $this->login();
+        $budi = Customer::create(['name' => 'Budi']);
+        $inv = $this->makeInvoice($budi); // total 45000
+
+        $this->putJson("/api/invoices/{$inv['id']}", ['items' => [$this->item('2026-10-19', 'Gula', 1, 1000)]])->assertOk();
+
+        $this->getJson("/api/verify/{$inv['verifyToken']}")->assertJsonPath('total', 1000);
+        $this->getJson('/api/verify/'.str_repeat('x', 32))->assertNotFound();
+        $this->getJson("/api/verify/{$inv['invoiceNumber']}")->assertNotFound(); // nomor nota bukan kode verifikasi
+    }
+
     public function test_list_and_show_return_camel_case_shape(): void
     {
         $this->login();

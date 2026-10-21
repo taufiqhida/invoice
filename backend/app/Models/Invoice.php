@@ -7,12 +7,19 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 #[Fillable(['invoice_number', 'date', 'customer_id', 'status', 'discount', 'note'])]
 class Invoice extends Model
 {
     public const DRAFT = 'draft';
     public const STATUSES = ['draft', 'terkirim', 'lunas'];
+
+    protected static function booted(): void
+    {
+        // Kode acak untuk QR verifikasi di nota cetak.
+        static::creating(fn (Invoice $invoice) => $invoice->verify_token ??= Str::random(32));
+    }
 
     protected function casts(): array
     {

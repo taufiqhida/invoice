@@ -3,6 +3,7 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\VerifyController;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
@@ -26,12 +27,16 @@ Route::get('/health', function () {
 // Tidak ada pendaftaran publik: akun pemilik dibuat dari OWNER_EMAIL / OWNER_PASSWORD di .env.
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
 
+// Verifikasi nota dari QR di nota cetak: publik (tanpa login), dibatasi lajunya agar kode tidak bisa ditebak-tebak.
+Route::get('/verify/{token}', [VerifyController::class, 'show'])->middleware('throttle:60,1');
+
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
     Route::post('/logout', [AuthController::class, 'logout']);
 
     Route::get('/customers', [CustomerController::class, 'index']);
     Route::post('/customers', [CustomerController::class, 'store']);
+    Route::patch('/customers/{customer}', [CustomerController::class, 'update']);
 
     Route::get('/invoices', [InvoiceController::class, 'index']);
     Route::post('/invoices', [InvoiceController::class, 'store']);

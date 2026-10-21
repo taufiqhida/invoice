@@ -4,12 +4,13 @@ const inputCls =
   'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200'
 
 // Combobox pelanggan: ketik untuk mencari, klik / Enter untuk memilih.
-export default function CustomerPicker({ customers, value, onChange, onAddCustomer }) {
+export default function CustomerPicker({ customers, value, onChange, onAddCustomer, onUpdateCustomer }) {
   const selected = customers.find((c) => String(c.id) === String(value)) || null
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(0)
   const [adding, setAdding] = useState(false)
+  const [editing, setEditing] = useState(false) // true: form dipakai untuk mengubah pelanggan terpilih
   const [newName, setNewName] = useState('')
   const [newPhone, setNewPhone] = useState('')
   const [addError, setAddError] = useState('')
@@ -27,6 +28,7 @@ export default function CustomerPicker({ customers, value, onChange, onAddCustom
       if (rootRef.current && !e.composedPath().includes(rootRef.current)) {
         setOpen(false)
         setAdding(false)
+        setEditing(false)
       }
     }
     document.addEventListener('mousedown', onDocClick)
@@ -43,7 +45,21 @@ export default function CustomerPicker({ customers, value, onChange, onAddCustom
     setNewName(query.trim())
     setNewPhone('')
     setAddError('')
+    setEditing(false)
     setAdding(true)
+  }
+
+  const startEditing = () => {
+    setNewName(selected.name)
+    setNewPhone(selected.phone)
+    setAddError('')
+    setEditing(true)
+    setAdding(true)
+  }
+
+  const closeForm = () => {
+    setAdding(false)
+    setEditing(false)
   }
 
   const [savingNew, setSavingNew] = useState(false)
@@ -56,9 +72,14 @@ export default function CustomerPicker({ customers, value, onChange, onAddCustom
     setSavingNew(true)
     setAddError('')
     try {
-      const created = await onAddCustomer({ name, phone })
-      setAdding(false)
-      choose(created)
+      if (editing) {
+        await onUpdateCustomer(selected.id, { name, phone })
+        closeForm()
+      } else {
+        const created = await onAddCustomer({ name, phone })
+        closeForm()
+        choose(created)
+      }
     } catch (err) {
       setAddError(err.message)
     } finally {
@@ -71,7 +92,7 @@ export default function CustomerPicker({ customers, value, onChange, onAddCustom
       e.preventDefault()
       saveNew()
     } else if (e.key === 'Escape') {
-      setAdding(false)
+      closeForm()
     }
   }
 
@@ -105,11 +126,21 @@ export default function CustomerPicker({ customers, value, onChange, onAddCustom
             <span className="font-medium">{selected.name}</span>
             <span className="ml-2 text-slate-500">{selected.phone}</span>
           </button>
+          {onUpdateCustomer && (
+            <button
+              type="button"
+              onClick={startEditing}
+              aria-label="Ubah data pelanggan"
+              className="ml-2 rounded px-2 py-0.5 text-xs font-medium text-indigo-700 hover:bg-indigo-50"
+            >
+              Ubah
+            </button>
+          )}
           <button
             type="button"
             onClick={() => onChange('')}
             aria-label="Hapus pilihan pelanggan"
-            className="ml-2 text-slate-400 hover:text-red-600"
+            className="ml-1 text-slate-400 hover:text-red-600"
           >
             ✕
           </button>
@@ -131,9 +162,12 @@ export default function CustomerPicker({ customers, value, onChange, onAddCustom
           aria-expanded={open}
         />
       )}
-      {open && adding && (
+      {adding && (
         <div className="absolute z-10 mt-1 w-full space-y-2 rounded-lg border border-slate-200 bg-white p-3 shadow-lg">
-          <p className="text-sm font-medium">Pelanggan baru</p>
+          <p className="text-sm font-medium">{editing ? 'Ubah data pelanggan' : 'Pelanggan baru'}</p>
+          {editing && (
+            <p className="text-xs text-slate-500">Perubahan berlaku di semua nota pelanggan ini, termasuk yang lama.</p>
+          )}
           <input
             className={inputCls}
             placeholder="Nama pelanggan"
@@ -154,7 +188,7 @@ export default function CustomerPicker({ customers, value, onChange, onAddCustom
           <div className="flex justify-end gap-2">
             <button
               type="button"
-              onClick={() => setAdding(false)}
+              onClick={closeForm}
               className="rounded-lg px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100"
             >
               Batal
@@ -165,7 +199,7 @@ export default function CustomerPicker({ customers, value, onChange, onAddCustom
               disabled={savingNew}
               className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:bg-slate-300"
             >
-              {savingNew ? 'Menyimpan…' : 'Simpan & Pilih'}
+              {savingNew ? 'Menyimpan…' : editing ? 'Simpan' : 'Simpan & Pilih'}
             </button>
           </div>
         </div>
