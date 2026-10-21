@@ -1,9 +1,9 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import CustomerPicker from '../components/CustomerPicker.jsx'
 import SavedInvoiceModal from '../components/SavedInvoiceModal.jsx'
 import { formatRupiah, toNumber, todayISO, uid } from '../lib/format.js'
-import { mockCustomers, formatInvoiceNumber } from '../mocks/data.js'
-import { addInvoice, useInvoices } from '../mocks/invoiceStore.js'
+import { addCustomer, findOpenInvoice, saveInvoice, useCustomers, useInvoices } from '../lib/invoiceStore.js'
 
 const newItem = (date = todayISO()) => ({ id: uid(), name: '', qty: '1', price: '', date })
 
@@ -13,23 +13,27 @@ const inputCls =
   'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200'
 
 export default function BuatNota() {
-  const [customers, setCustomers] = useState(mockCustomers)
-  const [customerId, setCustomerId] = useState('')
+  const [searchParams] = useSearchParams()
+  const { customers } = useCustomers()
+  const [customerId, setCustomerId] = useState(searchParams.get('pelanggan') ?? '')
+  const [forceNew, setForceNew] = useState(false)
   const [date, setDate] = useState(todayISO())
   const [items, setItems] = useState([newItem()])
   const [discount, setDiscount] = useState('')
   const [note, setNote] = useState('')
   const [saved, setSaved] = useState(null)
 
-  // Tiruan: pelanggan baru hanya hidup di state; fase backend akan POST /api/customers.
-  const addCustomer = ({ name, phone }) => {
-    const created = { id: Date.now(), name, phone }
-    setCustomers((prev) => [...prev, created])
-    return created
+  const chooseCustomer = (id) => {
+    setCustomerId(id)
+    setForceNew(false)
   }
 
-  const invoices = useInvoices()
-  const invoiceNumber = formatInvoiceNumber(invoices.length + (saved ? 0 : 1))
+  const { invoices, loading, error: loadError, reload } = useInvoices()
+  // Satu pelanggan = satu nota berjalan: bila ada, barang baru ditambahkan ke nota itu.
+  const existing = findOpenInvoice(invoices, customerId)
+  const appendMode = !!existing && !forceNew
+  // Nomor nota baru dibuat server saat disimpan.
+  const invoiceNumber = appendMode ? existing.invoiceNumber : 'Nomor otomatis'
 
   // Baris kosong dibiarkan netral; baris terisi sebagian ditandai & tidak dihitung.
   const rowStatus = (it) => {
@@ -40,15 +44,22 @@ export default function BuatNota() {
     if (!it.name.trim()) problems.push('nama barang kosong')
     if (toNumber(it.qty) <= 0) problems.push('jumlah harus lebih dari 0')
     if (toNumber(it.price) <= 0) problems.push('harga harus lebih dari 0')
+    else if (!Number.isInteger(toNumber(it.price))) problems.push('harga harus bilangan bulat (tanpa koma)')
     return problems.length ? { state: 'invalid', problems } : { state: 'valid' }
   }
   const statuses = items.map(rowStatus)
   const validItems = items.filter((_, i) => statuses[i].state === 'valid')
   const invalidCount = statuses.filter((s) => s.state === 'invalid').length
 
-  const subtotal = validItems.reduce((sum, it) => sum + toNumber(it.qty) * toNumber(it.price), 0)
-  const discountValue = Math.min(toNumber(discount), subtotal)
+  const newSubtotal = validItems.reduce((sum, it) => sum + toNumber(it.qty) * toNumber(it.price), 0)
+  const subtotal = (appendMode ? existing.subtotal : 0) + newSubtotal
+  // Kolom diskon kosong pada nota berjalan = pertahankan diskon yang sudah ada.
+  const discountNum = discount === '' && appendMode ? existing.discount : toNumber(discount)
+  const discountValue = Math.min(discountNum, subtotal)
   const total = subtotal - discountValue
+  // Setelah tersimpan, nota di store sudah memuat barang ini; tampilkan angka final agar tidak terhitung dua kali.
+  const shownSubtotal = saved ? saved.subtotal : subtotal
+  const shownTotal = saved ? saved.total : total
 
   const updateItem = (id, field, value) =>
     setItems((prev) => prev.map((it) => (it.id === id ? { ...it, [field]: value } : it)))
@@ -57,44 +68,54 @@ export default function BuatNota() {
 
   const errors = []
   if (!customerId) errors.push('Pelanggan belum dipilih.')
-  if (!date) errors.push('Tanggal nota belum diisi.')
+  if (!appendMode && !date) errors.push('Tanggal nota belum diisi.')
   if (validItems.length === 0) errors.push('Tambahkan minimal satu barang dengan nama, jumlah, dan harga yang valid.')
   if (invalidCount > 0) errors.push(`${invalidCount} baris barang belum lengkap. Lengkapi atau hapus baris tersebut.`)
   if (toNumber(discount) < 0) errors.push('Diskon tidak boleh bernilai negatif.')
+  if (discount !== '' && !Number.isInteger(toNumber(discount))) errors.push('Diskon harus bilangan bulat (tanpa koma).')
 
   // Pesan baru muncul setelah pengguna mencoba menyimpan, lalu ikut diperbarui saat data diubah.
   const [submitted, setSubmitted] = useState(false)
   const [showModal, setShowModal] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault()
     setSubmitted(true)
-    if (errors.length > 0 || saved) return
-    const customer = customers.find((c) => String(c.id) === String(customerId))
-    const record = addInvoice({
-      invoiceNumber,
-      date,
-      customerName: customer?.name ?? '',
-      customerPhone: customer?.phone ?? '',
-      items: validItems.map((it) => ({
-        date: it.date,
-        name: it.name.trim(),
-        qty: toNumber(it.qty),
-        price: toNumber(it.price),
-      })),
-      subtotal,
-      discount: discountValue,
-      total,
-      note: note.trim(),
-    })
-    setSaved(record)
-    setShowModal(true)
+    if (errors.length > 0 || saved || saving) return
+    setSaving(true)
+    setSaveError('')
+    try {
+      // Server yang memutuskan: tambah ke nota berjalan pelanggan ini, atau buat nota baru.
+      const { invoice, appended } = await saveInvoice({
+        customer_id: Number(customerId),
+        date,
+        items: validItems.map((it) => ({
+          date: it.date,
+          name: it.name.trim(),
+          qty: toNumber(it.qty),
+          price: toNumber(it.price),
+        })),
+        // Kolom diskon kosong pada nota berjalan = pertahankan diskon yang ada (tidak dikirim).
+        discount: discount === '' && appendMode ? undefined : discountValue,
+        note: note.trim(),
+        separate: forceNew,
+      })
+      setSaved({ ...invoice, appended })
+      setShowModal(true)
+    } catch (err) {
+      setSaveError(err.message)
+    } finally {
+      setSaving(false)
+    }
   }
 
   const reset = () => {
     setShowModal(false)
     setSubmitted(false)
     setCustomerId('')
+    setForceNew(false)
     setItems([newItem()])
     setDiscount('')
     setNote('')
@@ -108,21 +129,51 @@ export default function BuatNota() {
           <div className="mb-4 flex items-center justify-between">
             <h1 className="text-xl font-semibold">Buat Nota Baru</h1>
             <span className="rounded-full bg-indigo-50 px-3 py-1 text-sm font-medium text-indigo-700">
-              {invoiceNumber}
+              {saved ? saved.invoiceNumber : invoiceNumber}
             </span>
           </div>
+          {loadError && (
+            <p role="alert" className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
+              Data belum bisa dimuat: {loadError}{' '}
+              <button type="button" onClick={reload} className="font-medium underline">
+                Coba lagi
+              </button>
+            </p>
+          )}
+          {loading && <p className="mb-4 text-sm text-slate-500">Memuat data pelanggan dan nota…</p>}
           <div className="grid gap-4 sm:grid-cols-2">
             <CustomerPicker
               customers={customers}
               value={customerId}
-              onChange={setCustomerId}
+              onChange={chooseCustomer}
               onAddCustomer={addCustomer}
             />
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium">Tanggal nota</span>
-              <input type="date" className={inputCls} value={date} onChange={(e) => setDate(e.target.value)} />
-            </label>
+            {!appendMode && (
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium">Tanggal nota</span>
+                <input type="date" className={inputCls} value={date} onChange={(e) => setDate(e.target.value)} />
+              </label>
+            )}
           </div>
+          {existing && !saved && (
+            <div className="mt-4 rounded-lg border border-indigo-200 bg-indigo-50 p-3 text-sm text-indigo-900">
+              {appendMode ? (
+                <>
+                  <p className="font-semibold">Pelanggan ini punya nota berjalan: {existing.invoiceNumber}</p>
+                  <p className="mt-0.5">
+                    Sudah ada {existing.items.length} barang, total {formatRupiah(existing.total)}. Barang yang kamu isi di
+                    bawah akan <strong>ditambahkan ke nota ini</strong>, bukan membuat nota baru.
+                  </p>
+                </>
+              ) : (
+                <p className="font-semibold">Akan dibuat nota baru terpisah (nota {existing.invoiceNumber} tidak diubah).</p>
+              )}
+              <label className="mt-2 flex items-center gap-2 text-xs">
+                <input type="checkbox" checked={forceNew} onChange={(e) => setForceNew(e.target.checked)} />
+                Buat nota baru terpisah, jangan gabung ke nota berjalan
+              </label>
+            </div>
+          )}
         </section>
 
         <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -235,12 +286,18 @@ export default function BuatNota() {
         <h2 className="text-base font-semibold">Ringkasan</h2>
         <dl className="space-y-2 text-sm">
           <div className="flex justify-between">
-            <dt className="text-slate-500">Jumlah barang</dt>
+            <dt className="text-slate-500">{appendMode ? 'Barang baru' : 'Jumlah barang'}</dt>
             <dd>{validItems.length} jenis</dd>
           </div>
+          {appendMode && !saved && (
+            <div className="flex justify-between">
+              <dt className="text-slate-500">Sudah di nota</dt>
+              <dd>{formatRupiah(existing.subtotal)}</dd>
+            </div>
+          )}
           <div className="flex justify-between">
             <dt className="text-slate-500">Subtotal</dt>
-            <dd>{formatRupiah(subtotal)}</dd>
+            <dd>{formatRupiah(shownSubtotal)}</dd>
           </div>
           <div className="flex items-center justify-between gap-3">
             <dt className="text-slate-500">Diskon</dt>
@@ -248,28 +305,33 @@ export default function BuatNota() {
               <input
                 type="number"
                 min="0"
-                className={`${inputCls} text-right ${toNumber(discount) > subtotal ? 'border-amber-500 bg-amber-50' : ''}`}
-                placeholder="0"
+                className={`${inputCls} text-right ${discountNum > subtotal ? 'border-amber-500 bg-amber-50' : ''}`}
+                placeholder={appendMode ? String(existing.discount) : '0'}
                 value={discount}
                 onChange={(e) => setDiscount(e.target.value)}
               />
             </dd>
           </div>
-          {toNumber(discount) > subtotal && (
+          {discountNum > subtotal && (
             <div className="text-xs text-amber-700">Diskon melebihi subtotal, dihitung maksimal {formatRupiah(subtotal)}.</div>
           )}
           <div className="flex justify-between border-t border-slate-200 pt-3 text-base font-semibold">
             <dt>Total</dt>
-            <dd className="text-indigo-700">{formatRupiah(total)}</dd>
+            <dd className="text-indigo-700">{formatRupiah(shownTotal)}</dd>
           </div>
         </dl>
         <button
           type="submit"
-          disabled={!!saved}
+          disabled={!!saved || saving || loading}
           className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
         >
-          Simpan Nota
+          {saving ? 'Menyimpan…' : saved ? 'Tersimpan' : appendMode ? 'Tambahkan ke Nota' : 'Simpan Nota'}
         </button>
+        {saveError && (
+          <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
+            Gagal menyimpan: {saveError}
+          </p>
+        )}
         {submitted && errors.length > 0 && (
           <div role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
             <p className="mb-1 font-semibold">Nota belum bisa disimpan:</p>
@@ -282,7 +344,11 @@ export default function BuatNota() {
         )}
         {saved && (
           <div className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">
-            <p className="font-semibold">Nota {saved.invoiceNumber} tersimpan (data tiruan)</p>
+            <p className="font-semibold">
+              {saved.appended
+                ? `${saved.appended} barang ditambahkan ke nota ${saved.invoiceNumber}`
+                : `Nota ${saved.invoiceNumber} tersimpan`}
+            </p>
             <p>Total {formatRupiah(saved.total)}</p>
             <button type="button" onClick={reset} className="mt-2 font-medium underline">
               Buat nota baru

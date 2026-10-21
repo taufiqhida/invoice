@@ -1,9 +1,9 @@
 import { Link } from 'react-router-dom'
 import { formatRupiah } from '../lib/format.js'
-import { useInvoices } from '../mocks/invoiceStore.js'
+import { STATUS_LABEL, useInvoices } from '../lib/invoiceStore.js'
 
 const statusStyle = {
-  draft: 'bg-slate-100 text-slate-600',
+  draft: 'bg-amber-100 text-amber-800',
   terkirim: 'bg-sky-100 text-sky-700',
   lunas: 'bg-emerald-100 text-emerald-700',
 }
@@ -12,7 +12,7 @@ const formatDate = (iso) =>
   new Date(iso + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
 
 export default function RiwayatNota() {
-  const invoices = useInvoices()
+  const { invoices, loading, error, reload } = useInvoices()
   const sorted = [...invoices].sort((a, b) => b.id - a.id)
 
   return (
@@ -26,7 +26,16 @@ export default function RiwayatNota() {
           + Buat Nota
         </Link>
       </div>
-      {sorted.length === 0 ? (
+      {loading ? (
+        <p className="px-5 pb-8 text-sm text-slate-500">Memuat nota…</p>
+      ) : error ? (
+        <p role="alert" className="mx-5 mb-5 rounded-lg bg-red-50 p-3 text-sm text-red-700">
+          Nota belum bisa dimuat: {error}{' '}
+          <button type="button" onClick={reload} className="font-medium underline">
+            Coba lagi
+          </button>
+        </p>
+      ) : sorted.length === 0 ? (
         <p className="px-5 pb-8 text-sm text-slate-500">Belum ada nota tersimpan.</p>
       ) : (
         <div className="overflow-x-auto">
@@ -52,8 +61,8 @@ export default function RiwayatNota() {
                   <td className="px-5 py-3">{inv.customerName}</td>
                   <td className="whitespace-nowrap px-5 py-3 text-right">{formatRupiah(inv.total)}</td>
                   <td className="px-5 py-3">
-                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${statusStyle[inv.status]}`}>
-                      {inv.status}
+                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${statusStyle[inv.status]}`}>
+                      {STATUS_LABEL[inv.status]}
                     </span>
                   </td>
                 </tr>

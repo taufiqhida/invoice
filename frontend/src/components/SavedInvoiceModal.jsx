@@ -20,7 +20,7 @@ export default function SavedInvoiceModal({ invoice, onNew, onClose }) {
           ✓
         </div>
         <h2 id="saved-title" className="text-center text-lg font-semibold">
-          Nota berhasil disimpan
+          {invoice.appended ? `${invoice.appended} barang ditambahkan ke nota` : 'Nota berhasil disimpan'}
         </h2>
         <dl className="mt-4 space-y-2 rounded-lg bg-slate-50 p-4 text-sm">
           <div className="flex justify-between">

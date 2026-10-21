@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\ForceJsonResponse;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -13,7 +14,12 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        // Berjalan di belakang Nginx (container web dan Nginx host/aaPanel); percayai header X-Forwarded-*
+        // supaya IP asli pengunjung dipakai pembatas login (throttle). Container hanya bisa dijangkau lewat proxy.
+        $middleware->trustProxies(at: '*');
+
+        // Tanpa header Accept, Laravel mencoba redirect ke rute "login" yang tidak ada (jadi 500, bukan 401).
+        $middleware->api(prepend: [ForceJsonResponse::class]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

@@ -46,14 +46,24 @@ export default function CustomerPicker({ customers, value, onChange, onAddCustom
     setAdding(true)
   }
 
-  const saveNew = () => {
+  const [savingNew, setSavingNew] = useState(false)
+  const saveNew = async () => {
+    if (savingNew) return
     const name = newName.trim()
     const phone = newPhone.trim()
     if (!name) return setAddError('Nama pelanggan wajib diisi.')
     if (phone && !/^[0-9+\-\s]{6,20}$/.test(phone)) return setAddError('Nomor telepon tidak valid.')
-    const created = onAddCustomer({ name, phone })
-    setAdding(false)
-    choose(created)
+    setSavingNew(true)
+    setAddError('')
+    try {
+      const created = await onAddCustomer({ name, phone })
+      setAdding(false)
+      choose(created)
+    } catch (err) {
+      setAddError(err.message)
+    } finally {
+      setSavingNew(false)
+    }
   }
 
   const onNewKeyDown = (e) => {
@@ -152,9 +162,10 @@ export default function CustomerPicker({ customers, value, onChange, onAddCustom
             <button
               type="button"
               onClick={saveNew}
-              className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-indigo-700"
+              disabled={savingNew}
+              className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:bg-slate-300"
             >
-              Simpan & Pilih
+              {savingNew ? 'Menyimpan…' : 'Simpan & Pilih'}
             </button>
           </div>
         </div>

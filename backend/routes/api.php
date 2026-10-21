@@ -1,5 +1,8 @@
 <?php
 
+use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\InvoiceController;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
@@ -18,4 +21,20 @@ Route::get('/health', function () {
         'database' => $db,
         'time' => now()->toIso8601String(),
     ], $db === 'ok' ? 200 : 503);
+});
+
+// Tidak ada pendaftaran publik: akun pemilik dibuat dari OWNER_EMAIL / OWNER_PASSWORD di .env.
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
+
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/me', [AuthController::class, 'me']);
+    Route::post('/logout', [AuthController::class, 'logout']);
+
+    Route::get('/customers', [CustomerController::class, 'index']);
+    Route::post('/customers', [CustomerController::class, 'store']);
+
+    Route::get('/invoices', [InvoiceController::class, 'index']);
+    Route::post('/invoices', [InvoiceController::class, 'store']);
+    Route::get('/invoices/{invoice}', [InvoiceController::class, 'show']);
+    Route::patch('/invoices/{invoice}', [InvoiceController::class, 'update']);
 });
