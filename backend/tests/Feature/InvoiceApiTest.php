@@ -425,6 +425,44 @@ class InvoiceApiTest extends TestCase
         $this->getJson("/api/verify/{$inv['invoiceNumber']}")->assertNotFound(); // nomor nota bukan kode verifikasi
     }
 
+    public function test_store_profile_is_readable_publicly_but_editable_only_after_login(): void
+    {
+        $this->getJson('/api/store')->assertOk()->assertJsonPath('name', 'Toko Saya')->assertJsonPath('address', '');
+
+        $this->putJson('/api/store', ['name' => 'Toko Berkah'])->assertUnauthorized();
+        $this->assertSame('Toko Saya', $this->getJson('/api/store')->json('name'));
+
+        $this->login();
+        $this->putJson('/api/store', ['name' => '  Toko Berkah Jaya ', 'address' => 'Jl. Merdeka 12', 'phone' => '0812-3456-7890'])
+            ->assertOk()->assertJsonPath('name', 'Toko Berkah Jaya')->assertJsonPath('address', 'Jl. Merdeka 12');
+
+        $this->getJson('/api/store')->assertJsonPath('name', 'Toko Berkah Jaya')->assertJsonPath('phone', '0812-3456-7890');
+        $this->assertDatabaseCount('stores', 1);
+    }
+
+    public function test_store_profile_validation_and_optional_fields_can_be_cleared(): void
+    {
+        $this->login();
+
+        $this->putJson('/api/store', ['name' => ''])->assertUnprocessable()->assertJsonValidationErrors('name');
+        $this->putJson('/api/store', ['name' => str_repeat('a', 101)])->assertUnprocessable();
+        $this->putJson('/api/store', ['name' => 'Toko', 'phone' => 'abc'])->assertUnprocessable();
+
+        $this->putJson('/api/store', ['name' => 'Toko', 'address' => 'Jl. A', 'phone' => '0812345678'])->assertOk();
+        $this->putJson('/api/store', ['name' => 'Toko', 'address' => '', 'phone' => ''])
+            ->assertOk()->assertJsonPath('address', '')->assertJsonPath('phone', '');
+    }
+
+    public function test_verify_page_uses_the_current_store_name(): void
+    {
+        $this->login();
+        $inv = $this->makeInvoice(Customer::create(['name' => 'Budi']));
+
+        $this->putJson('/api/store', ['name' => 'Toko Berkah'])->assertOk();
+
+        $this->getJson("/api/verify/{$inv['verifyToken']}")->assertJsonPath('store', 'Toko Berkah');
+    }
+
     public function test_list_and_show_return_camel_case_shape(): void
     {
         $this->login();

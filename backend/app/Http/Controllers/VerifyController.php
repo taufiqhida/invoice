@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Invoice;
+use App\Models\Store;
 use Illuminate\Http\JsonResponse;
 
 /**
@@ -16,7 +17,7 @@ class VerifyController extends Controller
         $invoice = Invoice::with(['customer', 'items'])->where('verify_token', $token)->firstOrFail();
 
         return response()->json([
-            'store' => config('app.name'),
+            'store' => Store::current()->name,
             'invoiceNumber' => $invoice->invoice_number,
             'date' => $invoice->date->toDateString(),
             'customerName' => $invoice->customer->name,

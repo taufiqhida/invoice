@@ -1,6 +1,6 @@
 import { Fragment } from 'react'
 import { formatDayDate, formatRupiah } from '../lib/format.js'
-import { mockStore } from '../mocks/data.js'
+import { useStoreProfile } from '../lib/storeProfile.js'
 import InvoiceQr from './InvoiceQr.jsx'
 
 const formatDate = (iso) =>
@@ -22,22 +22,19 @@ function groupByDate(invoice) {
 }
 
 // Lembar nota: dipakai untuk pratinjau layar dan cetak (A4 / struk lebar). Header toko selalu di atas.
-export default function InvoicePrint({ invoice, store = mockStore }) {
+export default function InvoicePrint({ invoice }) {
+  const store = useStoreProfile()
   const groups = groupByDate(invoice)
   return (
     <article className="invoice-sheet mx-auto w-full max-w-[210mm] bg-white p-8 text-sm text-slate-800 shadow-sm print:max-w-none print:p-0 print:shadow-none">
       <header className="flex items-start gap-4 border-b-2 border-slate-800 pb-4">
-        {store.logoPath ? (
-          <img src={store.logoPath} alt={`Logo ${store.name}`} className="h-16 w-16 object-contain" />
-        ) : (
-          <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-indigo-600 text-2xl font-bold text-white print:border print:border-slate-800 print:bg-white print:text-slate-800">
-            {store.name.charAt(0)}
-          </div>
-        )}
+        <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-indigo-600 text-2xl font-bold text-white print:border print:border-slate-800 print:bg-white print:text-slate-800">
+          {store.name.charAt(0).toUpperCase()}
+        </div>
         <div className="flex-1">
           <h1 className="text-xl font-bold uppercase tracking-wide">{store.name}</h1>
-          <p className="text-slate-600">{store.address}</p>
-          <p className="text-slate-600">Telp/WA: {store.phone}</p>
+          {store.address && <p className="text-slate-600">{store.address}</p>}
+          {store.phone && <p className="text-slate-600">Telp/WA: {store.phone}</p>}
         </div>
         <div className="text-right">
           <p className="text-lg font-semibold">NOTA</p>

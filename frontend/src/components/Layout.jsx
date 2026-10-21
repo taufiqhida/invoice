@@ -1,5 +1,6 @@
 import { NavLink, Navigate, Outlet } from 'react-router-dom'
 import { useAuth } from '../lib/auth.jsx'
+import { useStoreProfile } from '../lib/storeProfile.js'
 
 const linkCls = ({ isActive }) =>
   `rounded-lg px-3 py-1.5 text-sm font-medium ${
@@ -8,6 +9,7 @@ const linkCls = ({ isActive }) =>
 
 export default function Layout() {
   const { user, logout } = useAuth()
+  const store = useStoreProfile()
 
   if (user === undefined) {
     return <p className="p-8 text-center text-sm text-slate-500">Memuat…</p>
@@ -18,13 +20,16 @@ export default function Layout() {
     <div className="min-h-screen">
       <header className="border-b border-slate-200 bg-white print:hidden">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <span className="text-lg font-semibold text-indigo-700">Nota Toko Saya</span>
+          <span className="text-lg font-semibold text-indigo-700">{store.name}</span>
           <nav className="flex items-center gap-1">
             <NavLink to="/nota/baru" className={linkCls}>
               Buat Nota
             </NavLink>
             <NavLink to="/riwayat" className={linkCls}>
               Riwayat
+            </NavLink>
+            <NavLink to="/toko" className={linkCls}>
+              Toko
             </NavLink>
             <button
               type="button"

@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../lib/auth.jsx'
+import { useStoreProfile } from '../lib/storeProfile.js'
 
 const inputCls =
   'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200'
 
 export default function Login() {
   const { user, login } = useAuth()
+  const store = useStoreProfile()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -30,7 +32,7 @@ export default function Login() {
     <div className="flex min-h-screen items-center justify-center px-4">
       <form onSubmit={submit} className="w-full max-w-sm space-y-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <div>
-          <h1 className="text-xl font-semibold text-indigo-700">Nota Toko Saya</h1>
+          <h1 className="text-xl font-semibold text-indigo-700">{store.name}</h1>
           <p className="text-sm text-slate-500">Masuk untuk mengelola nota.</p>
         </div>
         <label className="block">
