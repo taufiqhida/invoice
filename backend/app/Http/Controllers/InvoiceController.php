@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Http\Resources\InvoiceResource;
 use App\Models\Customer;
 use App\Models\Invoice;
+use App\Models\Supplier;
+use App\Models\SupplierPrice;
 use Carbon\Carbon;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
@@ -41,6 +43,8 @@ class InvoiceController extends Controller
             'items.*.name' => ['required', 'string', 'max:255'],
             'items.*.qty' => ['required', 'numeric', 'gt:0', 'max:999999'],
             'items.*.price' => ['required', 'integer', 'gt:0', 'max:9999999999'],
+            'items.*.supplier_id' => ['nullable', 'integer', 'exists:suppliers,id'],
+            'items.*.cost_price' => ['nullable', 'integer', 'min:0', 'max:9999999999'],
             'discount' => ['nullable', 'integer', 'min:0'],
             'note' => ['nullable', 'string', 'max:1000'],
             'separate' => ['sometimes', 'boolean'],
@@ -101,6 +105,8 @@ class InvoiceController extends Controller
             'items.*.name' => ['required', 'string', 'max:255'],
             'items.*.qty' => ['required', 'numeric', 'gt:0', 'max:999999'],
             'items.*.price' => ['required', 'integer', 'gt:0', 'max:9999999999'],
+            'items.*.supplier_id' => ['nullable', 'integer', 'exists:suppliers,id'],
+            'items.*.cost_price' => ['nullable', 'integer', 'min:0', 'max:9999999999'],
             'discount' => ['nullable', 'integer', 'min:0'],
             'note' => ['nullable', 'string', 'max:1000'],
         ]);
@@ -120,12 +126,7 @@ class InvoiceController extends Controller
 
             $keep = [];
             foreach ($data['items'] as $row) {
-                $attrs = [
-                    'item_date' => $row['date'],
-                    'name' => trim($row['name']),
-                    'qty' => $row['qty'],
-                    'price' => $row['price'],
-                ];
+                $attrs = $this->itemAttributes($row);
                 if (! empty($row['id'])) {
                     $invoice->items()->whereKey($row['id'])->first()->update($attrs);
                     $keep[] = (int) $row['id'];
@@ -176,12 +177,7 @@ class InvoiceController extends Controller
             'status' => Invoice::DRAFT,
         ]);
 
-        $invoice->items()->createMany(array_map(fn ($i) => [
-            'item_date' => $i['date'],
-            'name' => trim($i['name']),
-            'qty' => $i['qty'],
-            'price' => $i['price'],
-        ], $data['items']));
+        $invoice->items()->createMany(array_map(fn ($i) => $this->itemAttributes($i), $data['items']));
         $invoice->unsetRelation('items')->load('items');
 
         $fields = [];
@@ -199,6 +195,34 @@ class InvoiceController extends Controller
         $invoice->touch(); // penanda "diperbarui" di halaman verifikasi
 
         return [$invoice->load('customer'), $appended];
+    }
+
+    /**
+     * Kolom barang dari data yang dikirim. Toko dan harga beli disalin ke barang (bukan hanya direferensikan),
+     * supaya rekap lama tidak berubah bila daftar harga atau tokonya diubah kemudian.
+     * Bila toko dipilih tapi harga beli tidak dikirim, dipakai harga tersimpan toko itu untuk barang ini.
+     */
+    private function itemAttributes(array $row): array
+    {
+        $name = trim($row['name']);
+        $supplier = empty($row['supplier_id']) ? null : Supplier::find($row['supplier_id']);
+        $cost = $row['cost_price'] ?? null;
+
+        if ($supplier && $cost === null) {
+            $cost = SupplierPrice::where('supplier_id', $supplier->id)
+                ->where('product_key', SupplierPrice::keyFor($name))
+                ->value('price');
+        }
+
+        return [
+            'item_date' => $row['date'],
+            'name' => $name,
+            'qty' => $row['qty'],
+            'price' => $row['price'],
+            'supplier_id' => $supplier?->id,
+            'supplier_name' => $supplier?->name,
+            'cost_price' => $cost,
+        ];
     }
 
     private function nextNumber(string $date): string

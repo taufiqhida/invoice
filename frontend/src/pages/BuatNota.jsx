@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import CustomerPicker from '../components/CustomerPicker.jsx'
+import ItemCost from '../components/ItemCost.jsx'
 import SavedInvoiceModal from '../components/SavedInvoiceModal.jsx'
 import { formatRupiah, toNumber, todayISO, uid } from '../lib/format.js'
 import {
@@ -11,8 +12,9 @@ import {
   useCustomers,
   useInvoices,
 } from '../lib/invoiceStore.js'
+import { useSuppliers } from '../lib/supplierStore.js'
 
-const newItem = (date = todayISO()) => ({ id: uid(), name: '', qty: '1', price: '', date })
+const newItem = (date = todayISO()) => ({ id: uid(), name: '', qty: '1', price: '', date, supplierId: '', cost: '' })
 
 const ITEM_GRID = 'sm:grid-cols-[140px_1fr_64px_110px_100px_28px]'
 
@@ -22,6 +24,7 @@ const inputCls =
 export default function BuatNota() {
   const [searchParams] = useSearchParams()
   const { customers } = useCustomers()
+  const { suppliers } = useSuppliers()
   const [customerId, setCustomerId] = useState(searchParams.get('pelanggan') ?? '')
   const [forceNew, setForceNew] = useState(false)
   const [date, setDate] = useState(todayISO())
@@ -52,6 +55,9 @@ export default function BuatNota() {
     if (toNumber(it.qty) <= 0) problems.push('jumlah harus lebih dari 0')
     if (toNumber(it.price) <= 0) problems.push('harga harus lebih dari 0')
     else if (!Number.isInteger(toNumber(it.price))) problems.push('harga harus bilangan bulat (tanpa koma)')
+    if (it.cost !== '' && (toNumber(it.cost) < 0 || !Number.isInteger(toNumber(it.cost)))) {
+      problems.push('harga beli harus bilangan bulat, tidak negatif')
+    }
     return problems.length ? { state: 'invalid', problems } : { state: 'valid' }
   }
   const statuses = items.map(rowStatus)
@@ -103,6 +109,8 @@ export default function BuatNota() {
           name: it.name.trim(),
           qty: toNumber(it.qty),
           price: toNumber(it.price),
+          supplier_id: it.supplierId ? Number(it.supplierId) : null,
+          cost_price: it.cost === '' ? null : toNumber(it.cost),
         })),
         // Kolom diskon kosong pada nota berjalan = pertahankan diskon yang ada (tidak dikirim).
         discount: discount === '' && appendMode ? undefined : discountValue,
@@ -253,6 +261,15 @@ export default function BuatNota() {
                   ✕
                 </button>
               </div>
+              <ItemCost
+                name={it.name}
+                qty={it.qty}
+                price={it.price}
+                supplierId={it.supplierId}
+                cost={it.cost}
+                suppliers={suppliers}
+                onChange={(patch) => setItems((prev) => prev.map((r) => (r.id === it.id ? { ...r, ...patch } : r)))}
+              />
               {invalid && (
                 <p className="mt-1 text-xs text-red-600">
                   Tidak dihitung: {status.problems.join(', ')}.

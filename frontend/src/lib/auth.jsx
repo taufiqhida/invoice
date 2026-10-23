@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { api, getToken, onUnauthorized, setToken } from './api.js'
 import { resetData } from './invoiceStore.js'
+import { resetSuppliers } from './supplierStore.js'
 
 const AuthContext = createContext(null)
 
@@ -19,6 +20,7 @@ export function AuthProvider({ children }) {
     () =>
       onUnauthorized(() => {
         resetData()
+        resetSuppliers()
         setUser(null)
       }),
     [],
@@ -28,6 +30,7 @@ export function AuthProvider({ children }) {
     const { token, user: me } = await api('/login', { method: 'POST', body: { email, password } })
     setToken(token)
     resetData()
+    resetSuppliers()
     setUser(me)
   }, [])
 
@@ -39,6 +42,7 @@ export function AuthProvider({ children }) {
     }
     setToken(null)
     resetData()
+    resetSuppliers()
     setUser(null)
   }, [])
 

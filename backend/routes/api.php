@@ -3,7 +3,9 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\StoreController;
+use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\VerifyController;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
@@ -42,6 +44,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/customers', [CustomerController::class, 'index']);
     Route::post('/customers', [CustomerController::class, 'store']);
     Route::patch('/customers/{customer}', [CustomerController::class, 'update']);
+
+    // Toko tempat membeli barang + harga beli (modal), dan rekap untung. Khusus pemilik.
+    Route::get('/suppliers', [SupplierController::class, 'index']);
+    Route::delete('/suppliers/{supplier}', [SupplierController::class, 'destroy']);
+    Route::put('/supplier-prices', [SupplierController::class, 'savePrice']);
+    Route::delete('/supplier-prices/{price}', [SupplierController::class, 'destroyPrice']);
+    Route::get('/reports/profit', [ReportController::class, 'profit']);
 
     Route::get('/invoices', [InvoiceController::class, 'index']);
     Route::post('/invoices', [InvoiceController::class, 'store']);

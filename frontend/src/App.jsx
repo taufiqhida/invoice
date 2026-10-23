@@ -4,8 +4,10 @@ import Layout from './components/Layout.jsx'
 import { useStoreProfile } from './lib/storeProfile.js'
 import BuatNota from './pages/BuatNota.jsx'
 import DetailNota from './pages/DetailNota.jsx'
+import HargaBeli from './pages/HargaBeli.jsx'
 import Login from './pages/Login.jsx'
 import PengaturanToko from './pages/PengaturanToko.jsx'
+import Rekap from './pages/Rekap.jsx'
 import RiwayatNota from './pages/RiwayatNota.jsx'
 import Verifikasi from './pages/Verifikasi.jsx'
 
@@ -25,6 +27,8 @@ export default function App() {
         <Route path="/nota/baru" element={<BuatNota />} />
         <Route path="/riwayat" element={<RiwayatNota />} />
         <Route path="/nota/:id" element={<DetailNota />} />
+        <Route path="/harga-beli" element={<HargaBeli />} />
+        <Route path="/rekap" element={<Rekap />} />
         <Route path="/toko" element={<PengaturanToko />} />
       </Route>
     </Routes>

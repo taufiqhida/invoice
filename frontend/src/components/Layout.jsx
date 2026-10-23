@@ -28,6 +28,12 @@ export default function Layout() {
             <NavLink to="/riwayat" className={linkCls}>
               Riwayat
             </NavLink>
+            <NavLink to="/harga-beli" className={linkCls}>
+              Harga Beli
+            </NavLink>
+            <NavLink to="/rekap" className={linkCls}>
+              Rekap
+            </NavLink>
             <NavLink to="/toko" className={linkCls}>
               Toko
             </NavLink>

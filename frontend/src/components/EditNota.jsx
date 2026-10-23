@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { formatRupiah, toNumber, todayISO, uid } from '../lib/format.js'
+import { useSuppliers } from '../lib/supplierStore.js'
+import ItemCost from './ItemCost.jsx'
 
 const ITEM_GRID = 'sm:grid-cols-[140px_1fr_64px_110px_100px_28px]'
 
@@ -16,6 +18,9 @@ const problemsOf = (r) => {
   if (toNumber(r.qty) <= 0) p.push('jumlah harus lebih dari 0')
   if (toNumber(r.price) <= 0) p.push('harga harus lebih dari 0')
   else if (!Number.isInteger(toNumber(r.price))) p.push('harga harus bilangan bulat (tanpa koma)')
+  if (r.cost !== '' && (toNumber(r.cost) < 0 || !Number.isInteger(toNumber(r.cost)))) {
+    p.push('harga beli harus bilangan bulat, tidak negatif')
+  }
   return p
 }
 
@@ -30,8 +35,11 @@ export default function EditNota({ invoice, onSave, onCancel, onDelete }) {
       name: it.name,
       qty: String(it.qty),
       price: String(it.price),
+      supplierId: it.supplierId ? String(it.supplierId) : '',
+      cost: it.costPrice == null ? '' : String(it.costPrice),
     })),
   )
+  const { suppliers } = useSuppliers()
   const [date, setDate] = useState(invoice.date)
   const [custName, setCustName] = useState(invoice.customerName)
   const [custPhone, setCustPhone] = useState(invoice.customerPhone)
@@ -63,7 +71,16 @@ export default function EditNota({ invoice, onSave, onCancel, onDelete }) {
   const addRow = () =>
     setRows((prev) => [
       ...prev,
-      { key: uid(), id: null, date: prev[prev.length - 1]?.date || todayISO(), name: '', qty: '1', price: '' },
+      {
+        key: uid(),
+        id: null,
+        date: prev[prev.length - 1]?.date || todayISO(),
+        name: '',
+        qty: '1',
+        price: '',
+        supplierId: '',
+        cost: '',
+      },
     ])
 
   const submit = async (e) => {
@@ -86,6 +103,8 @@ export default function EditNota({ invoice, onSave, onCancel, onDelete }) {
             name: r.name.trim(),
             qty: toNumber(r.qty),
             price: toNumber(r.price),
+            supplier_id: r.supplierId ? Number(r.supplierId) : null,
+            cost_price: r.cost === '' ? null : toNumber(r.cost),
           })),
           discount: discount === '' ? 0 : toNumber(discount),
           note: note.trim(),
@@ -206,6 +225,15 @@ export default function EditNota({ invoice, onSave, onCancel, onDelete }) {
                     ✕
                   </button>
                 </div>
+                <ItemCost
+                  name={r.name}
+                  qty={r.qty}
+                  price={r.price}
+                  supplierId={r.supplierId}
+                  cost={r.cost}
+                  suppliers={suppliers}
+                  onChange={(patch) => setRows((prev) => prev.map((x) => (x.key === r.key ? { ...x, ...patch } : x)))}
+                />
                 {bad && <p className="mt-1 text-xs text-red-600">Perlu dibetulkan: {problems[i].join(', ')}.</p>}
               </div>
             )

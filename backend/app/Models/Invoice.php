@@ -13,6 +13,7 @@ use Illuminate\Support\Str;
 class Invoice extends Model
 {
     public const DRAFT = 'draft';
+    public const PAID = 'lunas';
     public const STATUSES = ['draft', 'terkirim', 'lunas'];
 
     protected static function booted(): void

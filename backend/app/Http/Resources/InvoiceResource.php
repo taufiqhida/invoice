@@ -25,6 +25,10 @@ class InvoiceResource extends JsonResource
                 'name' => $i->name,
                 'qty' => $i->qty,
                 'price' => $i->price,
+                // Modal: hanya untuk pemilik (endpoint ini butuh login). Tidak dipakai nota cetak maupun halaman verifikasi.
+                'supplierId' => $i->supplier_id,
+                'supplierName' => $i->supplier_name,
+                'costPrice' => $i->cost_price,
             ])->all(),
             'subtotal' => $this->subtotal,
             'discount' => $this->discount,
