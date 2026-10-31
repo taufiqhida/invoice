@@ -86,6 +86,17 @@ export async function updateInvoice(id, payload) {
   return invoice
 }
 
+// Gabungkan nota lain milik pelanggan yang sama ke nota ini. Nota yang digabung hilang dari daftar.
+export async function mergeInvoices(id, sourceIds) {
+  const invoice = await api(`/invoices/${id}/merge`, { method: 'POST', body: { source_ids: sourceIds } })
+  set({
+    invoices: [invoice, ...(state.invoices ?? []).filter((i) => i.id !== invoice.id && !sourceIds.includes(i.id))].sort(
+      (a, b) => b.id - a.id,
+    ),
+  })
+  return invoice
+}
+
 export async function deleteInvoice(id) {
   await api(`/invoices/${id}`, { method: 'DELETE' })
   set({ invoices: (state.invoices ?? []).filter((i) => i.id !== id) })

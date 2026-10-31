@@ -2,14 +2,17 @@ import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import EditNota from '../components/EditNota.jsx'
 import InvoicePrint from '../components/InvoicePrint.jsx'
+import MergeNota from '../components/MergeNota.jsx'
 import {
   STATUS_LABEL,
   deleteInvoice,
   isOpen,
+  mergeInvoices,
   setInvoiceStatus,
   updateCustomer,
   updateInvoice,
   useInvoice,
+  useInvoices,
 } from '../lib/invoiceStore.js'
 
 export default function DetailNota() {
@@ -19,6 +22,16 @@ export default function DetailNota() {
   const [statusError, setStatusError] = useState('')
   const [editing, setEditing] = useState(false)
   const [notice, setNotice] = useState('')
+  const [merging, setMerging] = useState(false)
+  const { invoices } = useInvoices()
+  // Nota lain milik pelanggan yang sama = kandidat untuk digabung.
+  const others = invoice ? invoices.filter((i) => i.customerId === invoice.customerId && i.id !== invoice.id) : []
+
+  const doMerge = async (sourceIds) => {
+    await mergeInvoices(invoice.id, sourceIds)
+    setMerging(false)
+    setNotice(`${sourceIds.length} nota sudah digabung ke ${invoice.invoiceNumber}.`)
+  }
 
   const changeStatus = async (status) => {
     setStatusError('')
@@ -89,6 +102,15 @@ export default function DetailNota() {
               Ubah nota
             </button>
           )}
+          {others.length > 0 && !editing && (
+            <button
+              type="button"
+              onClick={() => setMerging(true)}
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Gabungkan nota
+            </button>
+          )}
           {isOpen(invoice) && !editing && (
             <Link
               to={`/nota/baru?pelanggan=${invoice.customerId ?? ''}`}
@@ -121,6 +143,7 @@ export default function DetailNota() {
       ) : (
         <InvoicePrint invoice={invoice} />
       )}
+      {merging && <MergeNota invoice={invoice} others={others} onMerge={doMerge} onClose={() => setMerging(false)} />}
     </div>
   )
 }

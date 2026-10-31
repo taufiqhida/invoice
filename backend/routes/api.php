@@ -57,5 +57,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/invoices/{invoice}', [InvoiceController::class, 'show']);
     Route::patch('/invoices/{invoice}', [InvoiceController::class, 'update']);
     Route::put('/invoices/{invoice}', [InvoiceController::class, 'replace']);
+    Route::post('/invoices/{invoice}/merge', [InvoiceController::class, 'merge']);
     Route::delete('/invoices/{invoice}', [InvoiceController::class, 'destroy']);
 });

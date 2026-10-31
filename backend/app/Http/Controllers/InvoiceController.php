@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Resources\InvoiceResource;
 use App\Models\Customer;
 use App\Models\Invoice;
+use App\Models\InvoiceItem;
 use App\Models\Supplier;
 use App\Models\SupplierPrice;
 use Carbon\Carbon;
@@ -147,6 +148,57 @@ class InvoiceController extends Controller
             }
             $invoice->update($fields);
             $invoice->touch(); // penanda "diperbarui" di halaman verifikasi
+        });
+
+        return response()->json((new InvoiceResource($invoice->refresh()->load(['customer', 'items'])))->resolve());
+    }
+
+    /**
+     * Gabungkan nota lain milik pelanggan yang sama ke nota ini. Barang dipindah (beserta tanggal dan modalnya),
+     * diskon dijumlahkan (maksimal sebesar subtotal), catatan disambung, tanggal nota memakai yang paling awal,
+     * dan nota yang digabung dihapus. Status hasil = yang paling belum selesai (berjalan < terkirim < lunas),
+     * jadi nota tidak jadi "lunas" bila ada bagian yang belum lunas.
+     */
+    public function merge(Request $request, Invoice $invoice): JsonResponse
+    {
+        $data = $request->validate([
+            'source_ids' => ['required', 'array', 'min:1', 'max:20'],
+            'source_ids.*' => ['integer', 'distinct', 'exists:invoices,id'],
+        ]);
+
+        if (in_array($invoice->id, $data['source_ids'])) {
+            throw ValidationException::withMessages(['source_ids' => 'Nota tidak bisa digabung dengan dirinya sendiri.']);
+        }
+
+        DB::transaction(function () use ($invoice, $data) {
+            // Kunci pelanggan agar penggabungan tidak berpapasan dengan penyimpanan nota lain milik pelanggan ini.
+            Customer::whereKey($invoice->customer_id)->lockForUpdate()->first();
+
+            $target = Invoice::whereKey($invoice->id)->lockForUpdate()->firstOrFail();
+            $sources = Invoice::whereIn('id', $data['source_ids'])->lockForUpdate()->get();
+
+            if ($sources->contains(fn (Invoice $s) => $s->customer_id !== $target->customer_id)) {
+                throw ValidationException::withMessages(['source_ids' => 'Hanya nota milik pelanggan yang sama yang bisa digabung.']);
+            }
+
+            $all = collect([$target])->concat($sources); // koleksi baru; $sources tidak berisi nota tujuan
+            $rank = array_flip(Invoice::STATUSES); // draft < terkirim < lunas
+            $status = $all->sortBy(fn (Invoice $i) => $rank[$i->status] ?? 0)->first()->status;
+            $notes = $all->map(fn (Invoice $i) => trim((string) $i->note))->filter()->implode("\n");
+            $discount = $all->sum('discount');
+            $date = $all->min(fn (Invoice $i) => $i->date->toDateString());
+
+            InvoiceItem::whereIn('invoice_id', $sources->pluck('id'))->update(['invoice_id' => $target->id]);
+            Invoice::whereIn('id', $sources->pluck('id'))->delete(); // barangnya sudah pindah, tidak ikut terhapus
+
+            $target->unsetRelation('items')->load('items');
+            $target->update([
+                'date' => $date,
+                'status' => $status,
+                'note' => $notes ?: null,
+                'discount' => min((int) $discount, $target->subtotal),
+            ]);
+            $target->touch(); // penanda "diperbarui" di halaman verifikasi
         });
 
         return response()->json((new InvoiceResource($invoice->refresh()->load(['customer', 'items'])))->resolve());
